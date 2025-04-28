@@ -1,0 +1,66 @@
+[debug] [2025-04-28T11:26:53.514Z] ----------------------------------------------------------------------
+[debug] [2025-04-28T11:26:53.516Z] Command:       C:\nvm4w\nodejs\node.exe C:\nvm4w\nodejs\node_modules\firebase-tools\lib\bin\firebase.js init
+[debug] [2025-04-28T11:26:53.517Z] CLI Version:   13.35.1
+[debug] [2025-04-28T11:26:53.517Z] Platform:      win32
+[debug] [2025-04-28T11:26:53.517Z] Node Version:  v18.20.8
+[debug] [2025-04-28T11:26:53.519Z] Time:          Mon Apr 28 2025 20:26:53 GMT+0900 (대한민국 표준시)
+[debug] [2025-04-28T11:26:53.520Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-04-28T11:26:53.528Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-04-28T11:26:53.529Z] > authorizing via signed-in user (rhdmf3368@gmail.com)
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  C:\Users\dream\soktawang_mvp
+
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] but for now we'll just set up a default project.
+[info] 
+[debug] [2025-04-28T11:27:04.884Z] Checked if tokens are valid: true, expires at: 1745841060739
+[debug] [2025-04-28T11:27:04.884Z] Checked if tokens are valid: true, expires at: 1745841060739
+[debug] [2025-04-28T11:27:04.887Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=100
+[debug] [2025-04-28T11:27:05.592Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2025-04-28T11:27:05.592Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[info] i  Using project soktawang-mvp-app-2025-4b0ca (soktawang-mvp-app-2025) 
+[info] 
+=== Firestore Setup
+[debug] [2025-04-28T11:27:07.122Z] Checked if tokens are valid: true, expires at: 1745841060739
+[debug] [2025-04-28T11:27:07.122Z] Checked if tokens are valid: true, expires at: 1745841060739
+[debug] [2025-04-28T11:27:07.122Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/services/firestore.googleapis.com [none]
+[debug] [2025-04-28T11:27:07.122Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/services/firestore.googleapis.com x-goog-quota-user=projects/soktawang-mvp-app-2025-4b0ca
+[debug] [2025-04-28T11:27:08.242Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/services/firestore.googleapis.com 200
+[debug] [2025-04-28T11:27:08.242Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/services/firestore.googleapis.com [omitted]
+[debug] [2025-04-28T11:27:08.242Z] Checked if tokens are valid: true, expires at: 1745841060739
+[debug] [2025-04-28T11:27:08.243Z] Checked if tokens are valid: true, expires at: 1745841060739
+[debug] [2025-04-28T11:27:08.243Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) [none]
+[debug] [2025-04-28T11:27:08.462Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) 404
+[debug] [2025-04-28T11:27:08.462Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) {"error":{"code":404,"message":"Project 'soktawang-mvp-app-2025-4b0ca' or database '(default)' does not exist.","status":"NOT_FOUND"}}
+[debug] [2025-04-28T11:27:08.463Z] error getting database type:  Request to https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) had HTTP Error: 404, Project 'soktawang-mvp-app-2025-4b0ca' or database '(default)' does not exist. {"name":"FirebaseError","children":[],"context":{"body":{"error":{"code":404,"message":"Project 'soktawang-mvp-app-2025-4b0ca' or database '(default)' does not exist.","status":"NOT_FOUND"}},"response":{"statusCode":404}},"exit":1,"message":"Request to https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) had HTTP Error: 404, Project 'soktawang-mvp-app-2025-4b0ca' or database '(default)' does not exist.","status":404}
+[info] (default) does not exist in project soktawang-mvp-app-2025-4b0ca.
+[debug] [2025-04-28T11:27:08.463Z] database_type: DATABASE_DOES_NOT_EXIST
+[debug] [2025-04-28T11:27:42.910Z] Checked if tokens are valid: true, expires at: 1745841060739
+[debug] [2025-04-28T11:27:42.910Z] Checked if tokens are valid: true, expires at: 1745841060739
+[debug] [2025-04-28T11:27:42.910Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) [none]
+[debug] [2025-04-28T11:27:43.093Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) 404
+[debug] [2025-04-28T11:27:43.094Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) {"error":{"code":404,"message":"Project 'soktawang-mvp-app-2025-4b0ca' or database '(default)' does not exist.","status":"NOT_FOUND"}}
+[debug] [2025-04-28T11:27:43.094Z] error getting database type:  Request to https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) had HTTP Error: 404, Project 'soktawang-mvp-app-2025-4b0ca' or database '(default)' does not exist. {"name":"FirebaseError","children":[],"context":{"body":{"error":{"code":404,"message":"Project 'soktawang-mvp-app-2025-4b0ca' or database '(default)' does not exist.","status":"NOT_FOUND"}},"response":{"statusCode":404}},"exit":1,"message":"Request to https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) had HTTP Error: 404, Project 'soktawang-mvp-app-2025-4b0ca' or database '(default)' does not exist.","status":404}
+[info] (default) does not exist in project soktawang-mvp-app-2025-4b0ca.
+[debug] [2025-04-28T11:27:43.095Z] database_type: DATABASE_DOES_NOT_EXIST
+[debug] [2025-04-28T11:28:49.510Z] Checked if tokens are valid: true, expires at: 1745841060739
+[debug] [2025-04-28T11:28:49.510Z] Checked if tokens are valid: true, expires at: 1745841060739
+[debug] [2025-04-28T11:28:49.510Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) [none]
+[debug] [2025-04-28T11:28:49.697Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) 404
+[debug] [2025-04-28T11:28:49.697Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) {"error":{"code":404,"message":"Project 'soktawang-mvp-app-2025-4b0ca' or database '(default)' does not exist.","status":"NOT_FOUND"}}
+[debug] [2025-04-28T11:28:49.697Z] error getting database type:  Request to https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) had HTTP Error: 404, Project 'soktawang-mvp-app-2025-4b0ca' or database '(default)' does not exist. {"name":"FirebaseError","children":[],"context":{"body":{"error":{"code":404,"message":"Project 'soktawang-mvp-app-2025-4b0ca' or database '(default)' does not exist.","status":"NOT_FOUND"}},"response":{"statusCode":404}},"exit":1,"message":"Request to https://firestore.googleapis.com/v1/projects/soktawang-mvp-app-2025-4b0ca/databases/(default) had HTTP Error: 404, Project 'soktawang-mvp-app-2025-4b0ca' or database '(default)' does not exist.","status":404}
+[info] (default) does not exist in project soktawang-mvp-app-2025-4b0ca.
+[debug] [2025-04-28T11:28:49.698Z] database_type: DATABASE_DOES_NOT_EXIST
