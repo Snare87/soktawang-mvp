@@ -32,47 +32,46 @@ class GameTimerNotifier extends StateNotifier<GameTimerState> {
   Timer? _timer; // Timer 객체를 저장할 변수
 
   void startTimer() {
-    // 이미 타이머가 활성 상태이거나 남은 시간이 0이면 시작하지 않음
     if (state.isActive || state.remainingSeconds == 0) return;
-
-    // 상태를 '활성'으로 변경하고 타이머 시작
     state = GameTimerState(
       remainingSeconds: state.remainingSeconds,
       isActive: true,
     );
 
-    _timer?.cancel(); // 혹시 모를 기존 타이머 취소
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (state.remainingSeconds > 0) {
-        // 남은 시간이 있으면 1초씩 감소
         state = GameTimerState(
           remainingSeconds: state.remainingSeconds - 1,
           isActive: true,
         );
       } else {
-        // 남은 시간이 0이 되면 타이머 중지
+        // 시간이 0초가 되면 타이머 중지 (팝업 호출은 UI에서 ref.listen으로 처리)
         stopTimer();
-        // TODO: 시간이 종료되었을 때의 로직 처리 (예: 결과 화면 표시)
+        // print('DEBUG: GAME OVER - Time is up!'); // <-- UI에서 감지하므로 여기서 print 제거
       }
     });
   }
 
   void stopTimer() {
-    _timer?.cancel(); // 타이머 취소
-    // 상태를 '비활성'으로 변경 (남은 시간은 그대로 유지)
-    state = GameTimerState(
-      remainingSeconds: state.remainingSeconds,
-      isActive: false,
-    );
+    _timer?.cancel();
+    // 타이머가 멈출 때도 상태는 반영해야 함 (listen 콜백이 실행되도록)
+    if (state.isActive) {
+      // 활성 상태일 때만 비활성으로 변경
+      state = GameTimerState(
+        remainingSeconds: state.remainingSeconds,
+        isActive: false,
+      );
+    }
   }
 
   // TODO: 필요시 게임 재시작을 위한 resetTimer() 구현
   // void resetTimer() {
   //   stopTimer();
   //   state = const GameTimerState(remainingSeconds: 60, isActive: false);
+  //   // currentInputProvider도 리셋 필요: ref.read(currentInputProvider.notifier).state = '';
   // }
 
-  // StateNotifier가 더 이상 사용되지 않을 때 타이머를 확실히 취소 (메모리 누수 방지)
   @override
   void dispose() {
     _timer?.cancel();
@@ -91,16 +90,113 @@ final gameTimerProvider =
 class TypingView extends ConsumerWidget {
   const TypingView({super.key});
 
+  // --- 결과 팝업 표시 함수 ---
+  void _showResultPopup(BuildContext context, WidgetRef ref) {
+    // 게임 종료 시점의 최종 상태 읽기 (read 사용)
+    final String finalInput = ref.read(currentInputProvider);
+    final GameTimerState finalTimerState = ref.read(gameTimerProvider);
+    // TODO: sampleSentence를 실제 게임 문장으로 교체 필요
+    const String sampleSentence = "빠른 갈색 여우가 게으른 개를 뛰어 넘습니다.";
+
+    // --- 최종 WPM, 정확도, 점수, 포인트 계산 ---
+    final int totalTyped = finalInput.length;
+    int correctlyTyped = 0;
+    for (int i = 0; i < totalTyped; i++) {
+      if (i < sampleSentence.length && sampleSentence[i] == finalInput[i]) {
+        correctlyTyped++;
+      }
+    }
+    final int elapsedTimeInSeconds = 60 - finalTimerState.remainingSeconds;
+    double wpm = 0;
+    if (elapsedTimeInSeconds > 0) {
+      double elapsedTimeInMinutes = elapsedTimeInSeconds / 60.0;
+      wpm = (correctlyTyped / 5) / elapsedTimeInMinutes;
+    } else if (totalTyped > 0 && finalInput == sampleSentence) {
+      // 시간이 0되기 직전 완료 시 처리 (선택적)
+    }
+
+    double accuracy = 0;
+    if (totalTyped > 0) {
+      accuracy = (correctlyTyped / totalTyped) * 100;
+    }
+    // TODO: 실제 점수 및 포인트 계산 로직 적용 필요
+    final int score = (wpm * accuracy / 100 * 10).toInt(); // 임시 점수 계산
+    final int points = (score / 5).toInt(); // 임시 포인트 계산
+
+    // --- Dialog 표시 ---
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('🎉 게임 결과 🎉'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text('타수: ${wpm.toInt()} WPM'),
+                Text('정확도: ${accuracy.toStringAsFixed(1)}%'),
+                const SizedBox(height: 16),
+                Text(
+                  '점수: $score 점',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                Text(
+                  '획득 포인트: $points P',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            IconButton(
+              icon: const Icon(Icons.share),
+              tooltip: '공유하기',
+              onPressed: () {
+                // TODO: 공유 기능 구현
+                print('Share button pressed!');
+              },
+            ),
+            TextButton(
+              child: const Text('확인'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(); // 팝업 닫기
+                // TODO: 팝업 닫은 후 다음 행동 정의 (예: 상태 초기화, 화면 이동)
+                // 예시: ref.invalidate(currentInputProvider);
+                //       ref.read(gameTimerProvider.notifier).resetTimer(); // resetTimer 구현 필요
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+  // --- _showResultPopup 함수 끝 ---
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // TODO: 나중에는 실제 게임 문장을 받아와야 함
-    const String sampleSentence = "빠른 갈색 여우가 게으른 개를 뛰어 넘습니다."; // 임시 샘플 문장
+    // --- ref.listen: 타이머 상태 변경 감지하여 시간 종료 시 팝업 호출 ---
+    ref.listen<GameTimerState>(gameTimerProvider, (previousState, newState) {
+      // 상태가 '활성'에서 '비활성'으로 바뀌고, 남은 시간이 0일 때 (시간 종료 시)
+      // previousState가 null일 수 있으므로 null safety 체크 추가 (?.)
+      if (previousState?.isActive == true &&
+          !newState.isActive &&
+          newState.remainingSeconds == 0) {
+        _showResultPopup(context, ref); // 시간 종료 시 팝업 호출
+      }
+    });
+    // --- ref.listen 끝 ---
 
     // Provider들로부터 현재 상태 읽기 (watch 사용)
     final String currentInput = ref.watch(currentInputProvider);
     final GameTimerState timerState = ref.watch(gameTimerProvider);
 
-    // --- RichText 생성을 위한 로직 (이전과 동일) ---
+    // TODO: sampleSentence를 실제 게임 문장으로 교체 필요
+    const String sampleSentence = "빠른 갈색 여우가 게으른 개를 뛰어 넘습니다.";
+
+    // --- RichText 생성을 위한 로직 ---
     List<TextSpan> textSpans = [];
     for (int i = 0; i < sampleSentence.length; i++) {
       TextStyle currentStyle;
@@ -137,36 +233,28 @@ class TypingView extends ConsumerWidget {
       textSpans.add(TextSpan(text: sampleSentence[i], style: currentStyle));
     }
     // --- TextSpan 로직 끝 ---
-    final int totalTyped = currentInput.length; // 총 입력한 글자 수
-    int correctlyTyped = 0; // 정확히 입력한 글자 수
 
-    // 입력한 길이만큼 반복하며 정확히 입력한 글자 수 계산
+    // --- WPM 및 정확도 계산 로직 ---
+    final int totalTyped = currentInput.length;
+    int correctlyTyped = 0;
     for (int i = 0; i < totalTyped; i++) {
-      // sampleSentence 길이를 벗어나지 않는지 확인 (오타로 더 길게 입력 시 에러 방지)
       if (i < sampleSentence.length && sampleSentence[i] == currentInput[i]) {
         correctlyTyped++;
       }
     }
-
-    // 경과 시간 계산 (타이머 시작 후)
     final int elapsedTimeInSeconds = 60 - timerState.remainingSeconds;
-    double wpm = 0; // 분당 단어 수 (타수) 초기값
-
-    // 경과 시간이 0보다 클 때만 WPM 계산 (0으로 나누기 방지)
+    double wpm = 0;
     if (elapsedTimeInSeconds > 0 && timerState.isActive) {
-      // 타이머가 활성화 되어 있을 때만 계산
-      // 경과 시간을 분 단위로 변환 (소수점 포함)
+      // 타이머 활성화 중일 때만 계산
       double elapsedTimeInMinutes = elapsedTimeInSeconds / 60.0;
-      // WPM 계산 (5글자를 1단어로 간주)
       wpm = (correctlyTyped / 5) / elapsedTimeInMinutes;
     }
-
-    // 정확도 계산 (0으로 나누기 방지)
     double accuracy = 0;
     if (totalTyped > 0) {
       accuracy = (correctlyTyped / totalTyped) * 100;
     }
     // --- 계산 로직 끝 ---
+
     return Scaffold(
       appBar: AppBar(title: const Text('타자 경기')),
       body: Padding(
@@ -174,31 +262,26 @@ class TypingView extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 상단 정보 (시간, 타수 등)
-            // 교체할 새로운 Row 코드
+            // 상단 정보 Row (WPM, 정확도 표시)
             Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween, // 요소들을 양쪽 끝 공간에 분산 배치
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // 남은 시간 표시
                 Text(
-                  '남은 시간: ${timerState.remainingSeconds}초', // 타이머 상태 사용
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ), // 글자 크기 약간 줄임
-                ),
-                // WPM(타수) 표시 (소수점 없이 정수로)
-                Text(
-                  '타수: ${wpm.toInt()} WPM', // 계산된 wpm 사용
+                  '남은 시간: ${timerState.remainingSeconds}초',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                // 정확도 표시 (소수점 한 자리까지)
                 Text(
-                  '정확도: ${accuracy.toStringAsFixed(1)}%', // 계산된 accuracy 사용
+                  '타수: ${wpm.toInt()} WPM',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '정확도: ${accuracy.toStringAsFixed(1)}%',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -206,10 +289,9 @@ class TypingView extends ConsumerWidget {
                 ),
               ],
             ),
-            // 새로운 Row 코드 끝
             const SizedBox(height: 32),
 
-            // 문제 문장 표시 영역 (RichText 사용) - 이전과 동일
+            // 문제 문장 표시 영역 (RichText 사용)
             Container(
               padding: const EdgeInsets.all(20.0),
               decoration: BoxDecoration(
@@ -237,19 +319,31 @@ class TypingView extends ConsumerWidget {
               ),
               style: const TextStyle(fontSize: 18),
               onChanged: (newValue) {
-                // 6. 첫 글자 입력 시 타이머 시작 로직 추가
-                if (!timerState.isActive && newValue.isNotEmpty) {
-                  // 타이머가 비활성 상태이고 입력값이 비어있지 않으면 타이머 시작
+                // 현재 타이머 상태 읽기
+                final bool timerCurrentlyActive =
+                    ref.read(gameTimerProvider).isActive;
+                // 첫 글자 입력 시 타이머 시작
+                if (!timerCurrentlyActive &&
+                    newValue.isNotEmpty &&
+                    ref.read(gameTimerProvider).remainingSeconds > 0) {
+                  // 시간이 남아있을때만 시작
                   ref.read(gameTimerProvider.notifier).startTimer();
                 }
-                // 입력값 Provider 업데이트 (기존 로직)
+                // 입력값 Provider 업데이트
                 ref.read(currentInputProvider.notifier).state = newValue;
+                // 문장 완성 체크
+                if (newValue == sampleSentence) {
+                  ref
+                      .read(gameTimerProvider.notifier)
+                      .stopTimer(); // 문장 완성 시 타이머 중지
+                  _showResultPopup(context, ref); // 팝업 함수 호출
+                }
               },
             ),
 
             const SizedBox(height: 24),
 
-            // 입력 확인용 임시 텍스트 - 그대로 둠 (나중에 필요 없으면 제거)
+            // 입력 확인용 임시 텍스트
             Text(
               '입력 확인: $currentInput',
               style: const TextStyle(fontSize: 16, color: Colors.blueGrey),
