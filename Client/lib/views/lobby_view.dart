@@ -11,12 +11,12 @@ class LobbyView extends ConsumerWidget {
     // Scaffold는 기본적인 화면 레이아웃 구조를 제공합니다.
     return Scaffold(
       appBar: AppBar(
-         // ↓↓↓ AppBar 제목도 화면에 맞게 변경
-        title: const Text('Home View'),
+        // ↓↓↓ AppBar 제목도 화면에 맞게 변경
+        title: const Text('Lobby View'),
       ),
       body: const Center(
-         // ↓↓↓ Body 내용도 화면에 맞게 변경 (일단은 텍스트만)
-        child: Text('Home View Content Placeholder'),
+        // ↓↓↓ Body 내용도 화면에 맞게 변경 (일단은 텍스트만)
+        child: Text('Lobby View Content Placeholder'),
       ),
     );
   }
