@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // Riverpod 패키지 import
+import 'package:flutter_riverpod/flutter_riverpod.dart';// Riverpod 패키지 import
+import 'views/home_view.dart'; 
 
 void main() {
   // 앱 전체를 ProviderScope로 감싸서 Riverpod 상태 관리를 활성화합니다.
@@ -19,15 +20,7 @@ class MyApp extends ConsumerWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: Scaffold( // 가장 기본적인 화면 구조 (임시 홈 화면)
-        appBar: AppBar(
-          title: const Text('속타왕 MVP'), // 화면 상단 바 제목
-        ),
-        body: const Center(
-          child: Text('Welcome! Setup Complete!'), // 화면 중앙 텍스트
-        ),
-      ),
-      // debugShowCheckedModeBanner: false, // 개발 중 디버그 배너 숨기려면 주석 해제
+      home: const HomeView(),
     );
   }
 }
