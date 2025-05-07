@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "568502315454",
+    "firebase_url": "https://soktawang-mvp-app-2025-4b0ca-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "soktawang-mvp-app-2025-4b0ca",
+    "storage_bucket": "soktawang-mvp-app-2025-4b0ca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:568502315454:android:9e73870a72f647ff9ef1ef",
+        "android_client_info": {
+          "package_name": "com.example.client"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAWiPHDPi1ggBbsJZx6IIKG6Ywwk8C7ovA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

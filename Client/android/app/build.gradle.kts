@@ -3,6 +3,8 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services") // <--- 이 줄을 추가!
+
 }
 
 android {
@@ -24,12 +26,12 @@ android {
         applicationId = "com.example.client"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 23 // <--- minSdkVersion을 23으로 직접 지정!
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
-
+    ndkVersion = "27.0.12077973"
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

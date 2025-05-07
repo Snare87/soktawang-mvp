@@ -1,35 +1,29 @@
-import 'dart:async'; // Timer 사용 위해 import
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart'; // kIsWeb
+import 'package:firebase_auth/firebase_auth.dart'; // Auth import
+import '../providers/game_providers.dart'; // Sentence providers
+import '../providers/ranking_provider.dart'; // currentRoundIdProvider import
 
-// --- Providers ---
+// --- Providers (Input & Timer - State specific to this view) ---
+final currentInputProvider = StateProvider<String>((_) => '');
 
-// 1. 사용자 입력을 저장하는 Provider
-final currentInputProvider = StateProvider<String>((ref) {
-  return ''; // 초기값은 빈 문자열
-});
-
-// 2. 게임 타이머 상태 정의 클래스
-@immutable // 불변 객체로 만들기
+@immutable
 class GameTimerState {
   final int remainingSeconds;
   final bool isActive;
-
   const GameTimerState({
     required this.remainingSeconds,
     required this.isActive,
   });
 }
 
-// 3. 게임 타이머 로직을 관리하는 StateNotifier
 class GameTimerNotifier extends StateNotifier<GameTimerState> {
   GameTimerNotifier()
-    : super(
-        const GameTimerState(remainingSeconds: 60, isActive: false),
-      ); // 초기 상태: 60초, 비활성
-
-  Timer? _timer; // Timer 객체를 저장할 변수
+    : super(const GameTimerState(remainingSeconds: 60, isActive: false));
+  Timer? _timer;
 
   void startTimer() {
     if (state.isActive || state.remainingSeconds == 0) return;
@@ -37,7 +31,6 @@ class GameTimerNotifier extends StateNotifier<GameTimerState> {
       remainingSeconds: state.remainingSeconds,
       isActive: true,
     );
-
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (state.remainingSeconds > 0) {
@@ -46,31 +39,20 @@ class GameTimerNotifier extends StateNotifier<GameTimerState> {
           isActive: true,
         );
       } else {
-        // 시간이 0초가 되면 타이머 중지 (팝업 호출은 UI에서 ref.listen으로 처리)
         stopTimer();
-        // print('DEBUG: GAME OVER - Time is up!'); // <-- UI에서 감지하므로 여기서 print 제거
       }
     });
   }
 
   void stopTimer() {
     _timer?.cancel();
-    // 타이머가 멈출 때도 상태는 반영해야 함 (listen 콜백이 실행되도록)
     if (state.isActive) {
-      // 활성 상태일 때만 비활성으로 변경
       state = GameTimerState(
         remainingSeconds: state.remainingSeconds,
         isActive: false,
       );
     }
   }
-
-  // TODO: 필요시 게임 재시작을 위한 resetTimer() 구현
-  // void resetTimer() {
-  //   stopTimer();
-  //   state = const GameTimerState(remainingSeconds: 60, isActive: false);
-  //   // currentInputProvider도 리셋 필요: ref.read(currentInputProvider.notifier).state = '';
-  // }
 
   @override
   void dispose() {
@@ -79,55 +61,76 @@ class GameTimerNotifier extends StateNotifier<GameTimerState> {
   }
 }
 
-// 4. GameTimerNotifier를 제공하는 StateNotifierProvider
 final gameTimerProvider =
     StateNotifierProvider<GameTimerNotifier, GameTimerState>((ref) {
       return GameTimerNotifier();
     });
 
 // --- TypingView Widget ---
-
-class TypingView extends ConsumerWidget {
+class TypingView extends ConsumerStatefulWidget {
   const TypingView({super.key});
 
-  // --- 결과 팝업 표시 함수 ---
-  void _showResultPopup(BuildContext context, WidgetRef ref) {
-    // 게임 종료 시점의 최종 상태 읽기 (read 사용)
+  @override
+  ConsumerState<TypingView> createState() => _TypingViewState();
+}
+
+// --- TypingView State ---
+class _TypingViewState extends ConsumerState<TypingView> {
+  bool _isResultSubmitting = false; // <--- 결과 제출 중 상태 플래그
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _startNewGame();
+      }
+    });
+  }
+
+  void _startNewGame() {
+    _isResultSubmitting = false; // <--- 플래그 초기화 추가
+    loadNewRandomSentence(ref);
+    ref.invalidate(currentInputProvider);
+    ref.invalidate(gameTimerProvider);
+    print("New game started!");
+  }
+
+  // --- 결과 팝업 표시 함수 (State 클래스 내부) ---
+  void _showResultPopup() {
     final String finalInput = ref.read(currentInputProvider);
     final GameTimerState finalTimerState = ref.read(gameTimerProvider);
-    // TODO: sampleSentence를 실제 게임 문장으로 교체 필요
-    const String sampleSentence = "빠른 갈색 여우가 게으른 개를 뛰어 넘습니다.";
+    final String gameSentence = ref.read(currentGameSentenceProvider);
 
-    // --- 최종 WPM, 정확도, 점수, 포인트 계산 ---
+    // --- 최종 WPM, 정확도 등 계산 ---
     final int totalTyped = finalInput.length;
     int correctlyTyped = 0;
     for (int i = 0; i < totalTyped; i++) {
-      if (i < sampleSentence.length && sampleSentence[i] == finalInput[i]) {
+      if (i < gameSentence.length && gameSentence[i] == finalInput[i])
         correctlyTyped++;
-      }
     }
     final int elapsedTimeInSeconds = 60 - finalTimerState.remainingSeconds;
     double wpm = 0;
     if (elapsedTimeInSeconds > 0) {
-      double elapsedTimeInMinutes = elapsedTimeInSeconds / 60.0;
-      wpm = (correctlyTyped / 5) / elapsedTimeInMinutes;
-    } else if (totalTyped > 0 && finalInput == sampleSentence) {
-      // 시간이 0되기 직전 완료 시 처리 (선택적)
+      double elapsedMinutes = elapsedTimeInSeconds / 60.0;
+      wpm = (correctlyTyped / 5) / elapsedMinutes;
+    } else if (totalTyped > 0 &&
+        finalInput == gameSentence &&
+        !finalTimerState.isActive) {
+      /* Edge case handling (optional) */
     }
-
     double accuracy = 0;
     if (totalTyped > 0) {
       accuracy = (correctlyTyped / totalTyped) * 100;
     }
-    // TODO: 실제 점수 및 포인트 계산 로직 적용 필요
-    final int score = (wpm * accuracy / 100 * 10).toInt(); // 임시 점수 계산
-    final int points = (score / 5).toInt(); // 임시 포인트 계산
+    final int score = (wpm * accuracy / 100 * 10).toInt();
+    final int points = (score / 5).toInt();
 
-    // --- Dialog 표시 ---
     showDialog(
-      context: context,
-      barrierDismissible: false,
+      context: context, // State의 context 사용
+      barrierDismissible: _isResultSubmitting ? false : true, // 제출 중 닫기 방지
       builder: (BuildContext dialogContext) {
+        // AlertDialog는 Stateless. 버튼 상태는 State 클래스의 _isResultSubmitting으로 제어
         return AlertDialog(
           title: const Text('🎉 게임 결과 🎉'),
           content: SingleChildScrollView(
@@ -154,106 +157,164 @@ class TypingView extends ConsumerWidget {
             IconButton(
               icon: const Icon(Icons.share),
               tooltip: '공유하기',
-              onPressed: () {
-                // TODO: 공유 기능 구현
-                print('Share button pressed!');
-              },
+              onPressed:
+                  _isResultSubmitting
+                      ? null
+                      : () {
+                        print('Share button pressed!');
+                      }, // State 변수 확인
             ),
-            TextButton(
-              child: const Text('확인'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(); // 팝업 닫기
-                // TODO: 팝업 닫은 후 다음 행동 정의 (예: 상태 초기화, 화면 이동)
-                // 예시: ref.invalidate(currentInputProvider);
-                //       ref.read(gameTimerProvider.notifier).resetTimer(); // resetTimer 구현 필요
-              },
-            ),
+            // 확인 버튼 또는 로딩 표시
+            _isResultSubmitting // State 변수 확인
+                ? const Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 20.0,
+                    vertical: 8.0,
+                  ),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+                : TextButton(
+                  child: const Text('확인'),
+                  onPressed: () async {
+                    // --- 중복 호출 방지 강화 ---
+                    if (_isResultSubmitting) return; // 이미 제출 중이면 무시
+
+                    // 제출 시작: State 변수 변경 및 UI 업데이트 요청 (setState 호출)
+                    setState(() {
+                      _isResultSubmitting = true;
+                    });
+
+                    // --- 함수 호출 로직 ---
+                    print(
+                      "Current User UID before call: ${FirebaseAuth.instance.currentUser?.uid}",
+                    );
+                    final Map<String, dynamic> dataToSubmit = {
+                      'score': score, 'wpm': wpm.toInt(), 'accuracy': accuracy,
+                      'sentenceId': 'sentence_id_placeholder', // TODO
+                      'roundId': ref.read(
+                        currentRoundIdProvider,
+                      ), // Provider에서 읽기
+                    };
+                    print(
+                      'DEBUG: Calling scoreSubmit with data: $dataToSubmit',
+                    );
+                    try {
+                      FirebaseFunctions functions = FirebaseFunctions.instance;
+                      final callable = functions.httpsCallable('scoreSubmit');
+                      final HttpsCallableResult result = await callable.call(
+                        dataToSubmit,
+                      );
+                      print(
+                        'DEBUG: scoreSubmit function completed successfully.',
+                      );
+                      print('DEBUG: Result data: ${result.data}');
+                    } catch (e) {
+                      print('ERROR during function call: $e');
+                      // 에러 발생 시 버튼 다시 활성화 하려면 setState 필요
+                      if (mounted)
+                        setState(
+                          () => _isResultSubmitting = false,
+                        ); // 에러 시 버튼 복구
+                    } finally {
+                      // 팝업 닫기 (dialogContext 사용)
+                      if (Navigator.of(dialogContext).canPop()) {
+                        Navigator.of(dialogContext).pop();
+                      }
+                      // 이전 화면(LobbyView)으로 이동 (State의 context 사용)
+                      // _isResultSubmitting은 finally 후에 실행될 수 있으므로 여기서 false로 바꾸면 안됨
+                      // _startNewGame에서 false로 리셋됨
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) Navigator.of(context).pop();
+                      });
+                    }
+                  }, // onPressed 끝
+                ), // TextButton 끝
           ],
         );
-      },
-    );
+      }, // showDialog builder 끝
+    ); // showDialog 끝
   }
   // --- _showResultPopup 함수 끝 ---
 
+  // --- Build Method ---
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // --- ref.listen: 타이머 상태 변경 감지하여 시간 종료 시 팝업 호출 ---
+  Widget build(BuildContext context) {
+    // 타이머 상태 변경 감지
     ref.listen<GameTimerState>(gameTimerProvider, (previousState, newState) {
-      // 상태가 '활성'에서 '비활성'으로 바뀌고, 남은 시간이 0일 때 (시간 종료 시)
-      // previousState가 null일 수 있으므로 null safety 체크 추가 (?.)
       if (previousState?.isActive == true &&
           !newState.isActive &&
           newState.remainingSeconds == 0) {
-        _showResultPopup(context, ref); // 시간 종료 시 팝업 호출
+        _showResultPopup();
       }
     });
-    // --- ref.listen 끝 ---
 
-    // Provider들로부터 현재 상태 읽기 (watch 사용)
+    // Provider들 watch
     final String currentInput = ref.watch(currentInputProvider);
     final GameTimerState timerState = ref.watch(gameTimerProvider);
+    final String gameSentence = ref.watch(currentGameSentenceProvider);
 
-    // TODO: sampleSentence를 실제 게임 문장으로 교체 필요
-    const String sampleSentence = "빠른 갈색 여우가 게으른 개를 뛰어 넘습니다.";
-
-    // --- RichText 생성을 위한 로직 ---
+    // --- RichText Spans Logic ---
     List<TextSpan> textSpans = [];
-    for (int i = 0; i < sampleSentence.length; i++) {
-      TextStyle currentStyle;
-      if (i < currentInput.length) {
-        if (sampleSentence[i] == currentInput[i]) {
-          // 맞은 글자
-          currentStyle = const TextStyle(
-            fontSize: 24,
-            height: 1.5,
-            letterSpacing: 1.2,
-            color: Colors.green,
-            fontWeight: FontWeight.bold,
-          );
+    if (gameSentence.isNotEmpty) {
+      for (int i = 0; i < gameSentence.length; i++) {
+        TextStyle currentStyle;
+        if (i < currentInput.length) {
+          if (gameSentence[i] == currentInput[i]) {
+            /* 맞음 */
+            currentStyle = const TextStyle(
+              fontSize: 24,
+              height: 1.5,
+              letterSpacing: 1.2,
+              color: Colors.green,
+              fontWeight: FontWeight.bold,
+            );
+          } else {
+            /* 틀림 */
+            currentStyle = const TextStyle(
+              fontSize: 24,
+              height: 1.5,
+              letterSpacing: 1.2,
+              color: Colors.red,
+              decoration: TextDecoration.lineThrough,
+              decorationColor: Colors.red,
+            );
+          }
         } else {
-          // 틀린 글자
-          currentStyle = const TextStyle(
+          /* 입력 안 됨 */
+          currentStyle = TextStyle(
             fontSize: 24,
             height: 1.5,
             letterSpacing: 1.2,
-            color: Colors.red,
-            decoration: TextDecoration.lineThrough,
-            decorationColor: Colors.red,
+            color: Colors.grey[400],
           );
         }
-      } else {
-        // 아직 입력되지 않은 글자
-        currentStyle = TextStyle(
-          fontSize: 24,
-          height: 1.5,
-          letterSpacing: 1.2,
-          color: Colors.grey[400],
-        );
+        textSpans.add(TextSpan(text: gameSentence[i], style: currentStyle));
       }
-      textSpans.add(TextSpan(text: sampleSentence[i], style: currentStyle));
     }
-    // --- TextSpan 로직 끝 ---
+    // --- TextSpan Logic End ---
 
-    // --- WPM 및 정확도 계산 로직 ---
+    // --- WPM/Accuracy Calculation ---
     final int totalTyped = currentInput.length;
     int correctlyTyped = 0;
     for (int i = 0; i < totalTyped; i++) {
-      if (i < sampleSentence.length && sampleSentence[i] == currentInput[i]) {
+      if (i < gameSentence.length && gameSentence[i] == currentInput[i])
         correctlyTyped++;
-      }
     }
     final int elapsedTimeInSeconds = 60 - timerState.remainingSeconds;
     double wpm = 0;
     if (elapsedTimeInSeconds > 0 && timerState.isActive) {
-      // 타이머 활성화 중일 때만 계산
-      double elapsedTimeInMinutes = elapsedTimeInSeconds / 60.0;
-      wpm = (correctlyTyped / 5) / elapsedTimeInMinutes;
+      double elapsedMinutes = elapsedTimeInSeconds / 60.0;
+      wpm = (correctlyTyped / 5) / elapsedMinutes;
     }
     double accuracy = 0;
     if (totalTyped > 0) {
       accuracy = (correctlyTyped / totalTyped) * 100;
     }
-    // --- 계산 로직 끝 ---
+    // --- Calculation End ---
 
     return Scaffold(
       appBar: AppBar(title: const Text('타자 경기')),
@@ -262,7 +323,7 @@ class TypingView extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 상단 정보 Row (WPM, 정확도 표시)
+            // Top Row
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -291,7 +352,7 @@ class TypingView extends ConsumerWidget {
             ),
             const SizedBox(height: 32),
 
-            // 문제 문장 표시 영역 (RichText 사용)
+            // Sentence Area
             Container(
               padding: const EdgeInsets.all(20.0),
               decoration: BoxDecoration(
@@ -300,14 +361,22 @@ class TypingView extends ConsumerWidget {
                 ).colorScheme.primaryContainer.withAlpha(26),
                 borderRadius: BorderRadius.circular(12.0),
               ),
-              child: RichText(
-                text: TextSpan(children: textSpans),
-                textAlign: TextAlign.center,
-              ),
+              child:
+                  gameSentence.isEmpty
+                      ? const Center(
+                        child: Text(
+                          "문장 로딩 중...",
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                      : RichText(
+                        text: TextSpan(children: textSpans),
+                        textAlign: TextAlign.center,
+                      ),
             ),
             const SizedBox(height: 32),
 
-            // 사용자 입력 필드
+            // Input Field
             TextField(
               decoration: InputDecoration(
                 hintText: '여기에 타자 입력...',
@@ -319,31 +388,24 @@ class TypingView extends ConsumerWidget {
               ),
               style: const TextStyle(fontSize: 18),
               onChanged: (newValue) {
-                // 현재 타이머 상태 읽기
-                final bool timerCurrentlyActive =
-                    ref.read(gameTimerProvider).isActive;
-                // 첫 글자 입력 시 타이머 시작
-                if (!timerCurrentlyActive &&
-                    newValue.isNotEmpty &&
-                    ref.read(gameTimerProvider).remainingSeconds > 0) {
-                  // 시간이 남아있을때만 시작
+                final bool timerCanStart =
+                    !ref.read(gameTimerProvider).isActive &&
+                    ref.read(gameTimerProvider).remainingSeconds > 0;
+                if (timerCanStart && newValue.isNotEmpty) {
                   ref.read(gameTimerProvider.notifier).startTimer();
                 }
-                // 입력값 Provider 업데이트
                 ref.read(currentInputProvider.notifier).state = newValue;
-                // 문장 완성 체크
-                if (newValue == sampleSentence) {
-                  ref
-                      .read(gameTimerProvider.notifier)
-                      .stopTimer(); // 문장 완성 시 타이머 중지
-                  _showResultPopup(context, ref); // 팝업 함수 호출
+                if (gameSentence.isNotEmpty && newValue == gameSentence) {
+                  if (ref.read(gameTimerProvider).isActive) {
+                    ref.read(gameTimerProvider.notifier).stopTimer();
+                    _showResultPopup();
+                  }
                 }
               },
             ),
-
             const SizedBox(height: 24),
 
-            // 입력 확인용 임시 텍스트
+            // Debug Text
             Text(
               '입력 확인: $currentInput',
               style: const TextStyle(fontSize: 16, color: Colors.blueGrey),
@@ -352,5 +414,5 @@ class TypingView extends ConsumerWidget {
         ),
       ),
     );
-  }
-}
+  } // build Method End
+} // _TypingViewState Class End
