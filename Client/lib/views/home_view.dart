@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/home_providers.dart'; // Provider import
 import '../providers/ranking_provider.dart'; // Ranking Provider import
 import 'lobby_view.dart';
+import '../services/notification_service.dart'; // << 이 줄 추가 (또는 올바른 경로로 수정)
 
 class HomeView extends ConsumerStatefulWidget {
-  // ConsumerStatefulWidget으로 유지
   const HomeView({super.key});
 
   @override
@@ -14,32 +14,33 @@ class HomeView extends ConsumerStatefulWidget {
 }
 
 class _HomeViewState extends ConsumerState<HomeView> {
-  Timer? _timer; // 1초마다 실행될 타이머 객체
-  Duration _currentRemainingTime = Duration.zero; // 화면에 표시될 현재 남은 시간 (State 변수)
-  bool _isTimerInitializedByProvider =
-      false; // Provider로부터 초기값을 받아 타이머를 시작했는지 여부
+  Timer? _timer;
+  Duration _currentRemainingTime = Duration.zero;
+  bool _isTimerInitializedByProvider = false;
 
   @override
   void initState() {
     super.initState();
-    // initState에서는 Provider를 직접 watch하기 어려우므로,
-    // 첫 빌드 후 또는 listen 콜백에서 초기화합니다.
+    // 앱 시작 시 또는 HomeView가 처음 빌드될 때 다음 라운드 알람 스케줄링 시도
+    // WidgetsBinding.instance.addPostFrameCallback((_) {
+    //   // TODO: 다음 단계에서 만들 roundAlarmSchedulerProvider를 사용하여 알람 스케줄링
+    //   // 예: ref.read(roundAlarmSchedulerProvider).scheduleNextSetOfAlarms();
+    // });
   }
 
   @override
   void dispose() {
-    _timer?.cancel(); // 위젯이 화면에서 제거될 때 타이머 취소
+    _timer?.cancel();
     super.dispose();
   }
 
   void _initializeOrResetTimer(Duration newRemainingTime) {
-    // Duration(days: 999)는 로딩 상태를 의미하므로 타이머 시작 안 함
     if (newRemainingTime.inDays > 900) {
       print("[HomeView] Timer not started, provider is loading.");
-      _timer?.cancel(); // 기존 타이머가 있다면 중지
+      _timer?.cancel();
       if (mounted) {
         setState(() {
-          _currentRemainingTime = newRemainingTime; // 화면에는 "--:--" 표시되도록
+          _currentRemainingTime = newRemainingTime;
         });
       }
       return;
@@ -48,9 +49,8 @@ class _HomeViewState extends ConsumerState<HomeView> {
     print(
       "[HomeView] Initializing/Resetting timer with duration: $newRemainingTime",
     );
-    _timer?.cancel(); // 기존 타이머가 있다면 중지
+    _timer?.cancel();
     if (mounted) {
-      // 위젯이 화면에 마운트된 상태인지 확인
       setState(() {
         _currentRemainingTime = newRemainingTime;
       });
@@ -61,12 +61,12 @@ class _HomeViewState extends ConsumerState<HomeView> {
         if (_currentRemainingTime.inSeconds <= 0) {
           timerInstance.cancel();
           print("[HomeView] Timer finished!");
-          // TODO: 시간이 0초가 되었을 때 처리
           if (mounted) {
-            // 0초가 되었을 때도 화면 갱신
             setState(() {
               _currentRemainingTime = Duration.zero;
             });
+            // TODO: 타이머 종료 시 (다음 라운드 시작 시) 알람 재스케줄링 로직 호출 고려
+            // 예: ref.read(roundAlarmSchedulerProvider).scheduleNextSetOfAlarms();
           }
         } else {
           if (mounted) {
@@ -75,7 +75,6 @@ class _HomeViewState extends ConsumerState<HomeView> {
                   _currentRemainingTime - const Duration(seconds: 1);
             });
           } else {
-            // 위젯이 dispose된 후 타이머가 계속 실행되는 것을 방지
             timerInstance.cancel();
           }
         }
@@ -85,7 +84,6 @@ class _HomeViewState extends ConsumerState<HomeView> {
 
   String formatDuration(Duration d) {
     if (d.inDays > 900) {
-      // 로딩 중 값 처리
       return "--:--";
     }
     final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
@@ -100,7 +98,6 @@ class _HomeViewState extends ConsumerState<HomeView> {
       nextAlarmTimeProvider,
     );
 
-    // Provider의 값이 바뀔 때마다 타이머를 초기화/재시작하도록 listen
     ref.listen<Duration>(nextAlarmTimeProvider, (
       previousDuration,
       newDuration,
@@ -120,20 +117,76 @@ class _HomeViewState extends ConsumerState<HomeView> {
 
     final String formattedTime = formatDuration(_currentRemainingTime);
 
+    // 알람 설정 상태를 watch합니다.
+    final isAlarmOn = ref.watch(alarmSettingsProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('속타왕 홈'),
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading: false, // 뒤로가기 버튼 숨김
+        actions: [
+          // AppBar 오른쪽에 알람 설정 아이콘과 텍스트 추가
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: Row(
+              children: [
+                Icon(
+                  isAlarmOn
+                      ? Icons.notifications_active
+                      : Icons.notifications_off_outlined,
+                ),
+                // Consumer를 사용하여 alarmSettingsProvider 상태에 따라 Switch를 빌드
+                Consumer(
+                  builder: (context, ref, child) {
+                    final bool currentAlarmState = ref.watch(
+                      alarmSettingsProvider,
+                    );
+                    return Switch(
+                      value: currentAlarmState,
+                      onChanged: (bool value) {
+                        // Switch 상태가 변경되면 alarmSettingsProvider를 통해 상태 업데이트
+                        ref
+                            .read(alarmSettingsProvider.notifier)
+                            .setAlarmEnabled(value);
+                        if (value) {
+                          // 알람을 켰을 때: 다음 라운드 알람을 스케줄링하는 로직 호출
+                          // TODO: 다음 단계에서 만들 roundAlarmSchedulerProvider 사용
+                          // 예시: ref.read(roundAlarmSchedulerProvider).scheduleNextSetOfAlarms();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                '라운드 알림이 켜졌습니다. 다음 라운드부터 알림이 예약됩니다.',
+                              ),
+                            ),
+                          );
+                        } else {
+                          // 알람을 껐을 때: 예약된 모든 알림 취소
+                          ref
+                              .read(notificationServiceProvider)
+                              .cancelAllNotifications();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('라운드 알림이 꺼졌습니다. 예약된 모든 알림이 취소됩니다.'),
+                            ),
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
       body: Padding(
-        // <--- 여기 padding 파라미터!
-        padding: const EdgeInsets.all(16.0), // 전체적인 여백 다시 추가
+        padding: const EdgeInsets.all(16.0),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // --- 상단 정보 영역 (무료 플레이, 다음 라운드 시간) ---
+              // ... (기존 '남은 무료 플레이', '다음 라운드까지' Text 위젯들) ...
               Column(
                 children: [
                   Row(
@@ -159,6 +212,34 @@ class _HomeViewState extends ConsumerState<HomeView> {
                       ),
                     ],
                   ),
+                  // --- 알람 설정 스위치 (SwitchListTile 사용 예시) ---
+                  // Consumer를 사용하여 alarmSettingsProvider 상태에 따라 SwitchListTile을 빌드
+                  // AppBar에 넣었으므로 여기서는 주석 처리하거나 다른 위치에 둘 수 있습니다.
+                  // Consumer(
+                  //   builder: (context, ref, child) {
+                  //     final bool isAlarmEnabled = ref.watch(alarmSettingsProvider);
+                  //     return SwitchListTile(
+                  //       title: const Text('라운드 알림 받기'),
+                  //       value: isAlarmEnabled,
+                  //       onChanged: (bool value) {
+                  //         ref.read(alarmSettingsProvider.notifier).setAlarmEnabled(value);
+                  //         if (value) {
+                  //           // 알람 ON 시 로직 (예: 다음 알람 스케줄링)
+                  //           // ref.read(roundAlarmSchedulerProvider).scheduleNextSetOfAlarms();
+                  //           ScaffoldMessenger.of(context).showSnackBar(
+                  //             const SnackBar(content: Text('라운드 알림이 켜졌습니다.')),
+                  //           );
+                  //         } else {
+                  //           // 알람 OFF 시 로직 (예: 모든 알람 취소)
+                  //           ref.read(notificationServiceProvider).cancelAllNotifications();
+                  //           ScaffoldMessenger.of(context).showSnackBar(
+                  //             const SnackBar(content: Text('라운드 알림이 꺼졌습니다.')),
+                  //           );
+                  //         }
+                  //       },
+                  //     );
+                  //   },
+                  // ),
                 ],
               ),
 
@@ -238,9 +319,8 @@ class _HomeViewState extends ConsumerState<HomeView> {
               ), // 랭킹 영역 끝
               // --- 하단: 로비 가기 버튼 ---
               ElevatedButton.icon(
-                // <--- 여기에 onPressed 와 label 파라미터!
                 icon: const Icon(Icons.keyboard_arrow_right),
-                label: const Text('로비 가기'), // label 추가
+                label: const Text('로비 가기'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,
@@ -249,17 +329,16 @@ class _HomeViewState extends ConsumerState<HomeView> {
                   textStyle: Theme.of(context).textTheme.titleMedium,
                 ),
                 onPressed: () {
-                  // onPressed 추가
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const LobbyView()),
                   );
                 },
-              ), // 로비 가기 버튼 끝
+              ),
             ],
           ),
         ),
       ),
     );
-  } // build 메소드 끝
+  }
 }
