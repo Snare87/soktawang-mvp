@@ -106,8 +106,9 @@ class _TypingViewState extends ConsumerState<TypingView> {
     final int totalTyped = finalInput.length;
     int correctlyTyped = 0;
     for (int i = 0; i < totalTyped; i++) {
-      if (i < gameSentence.length && gameSentence[i] == finalInput[i])
+      if (i < gameSentence.length && gameSentence[i] == finalInput[i]) {
         correctlyTyped++;
+      }
     }
     final int elapsedTimeInSeconds = 60 - finalTimerState.remainingSeconds;
     double wpm = 0;
@@ -203,7 +204,12 @@ class _TypingViewState extends ConsumerState<TypingView> {
                       'DEBUG: Calling scoreSubmit with data: $dataToSubmit',
                     );
                     try {
-                      FirebaseFunctions functions = FirebaseFunctions.instance;
+                      // FirebaseFunctions functions = FirebaseFunctions.instance;
+                      FirebaseFunctions functions =
+                          FirebaseFunctions.instanceFor(
+                            region: 'asia-southeast1',
+                          ); // <--- 이렇게 리전 지정!
+
                       final callable = functions.httpsCallable('scoreSubmit');
                       final HttpsCallableResult result = await callable.call(
                         dataToSubmit,
@@ -215,10 +221,11 @@ class _TypingViewState extends ConsumerState<TypingView> {
                     } catch (e) {
                       print('ERROR during function call: $e');
                       // 에러 발생 시 버튼 다시 활성화 하려면 setState 필요
-                      if (mounted)
+                      if (mounted) {
                         setState(
                           () => _isResultSubmitting = false,
                         ); // 에러 시 버튼 복구
+                      }
                     } finally {
                       // 팝업 닫기 (dialogContext 사용)
                       if (Navigator.of(dialogContext).canPop()) {
@@ -301,8 +308,9 @@ class _TypingViewState extends ConsumerState<TypingView> {
     final int totalTyped = currentInput.length;
     int correctlyTyped = 0;
     for (int i = 0; i < totalTyped; i++) {
-      if (i < gameSentence.length && gameSentence[i] == currentInput[i])
+      if (i < gameSentence.length && gameSentence[i] == currentInput[i]) {
         correctlyTyped++;
+      }
     }
     final int elapsedTimeInSeconds = 60 - timerState.remainingSeconds;
     double wpm = 0;

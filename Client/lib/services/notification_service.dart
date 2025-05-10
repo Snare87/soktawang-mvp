@@ -60,13 +60,20 @@ class NotificationService {
 
   // 알림 서비스 초기화 함수
   Future<void> initialize() async {
-    // Timezone 데이터 초기화 (zonedSchedule 사용 시 필수)
-    tz.initializeTimeZones();
-    // tz.setLocalLocation(tz.getLocation('Asia/Seoul')); // 앱의 기본 타임존 설정 (한국 기준)
-    // 필요하다면 flutter_native_timezone 패키지를 사용하여 기기의 실제 타임존을 가져와 설정할 수 있습니다.
-    // final String currentTimeZone = await FlutterNativeTimezone.getLocalTimezone();
-    // tz.setLocalLocation(tz.getLocation(currentTimeZone));
+    tz.initializeTimeZones(); // Timezone 데이터 초기화
 
+    // 애플리케이션의 기본 로컬 시간대를 설정합니다.
+    // 한국에서 서비스한다면 'Asia/Seoul'로 고정하는 것이 좋습니다.
+    // 또는 flutter_native_timezone 패키지를 사용하여 기기의 실제 시간대를 가져올 수도 있습니다.
+    try {
+      // final String currentTimeZone = await FlutterNativeTimezone.getLocalTimezone();
+      // tz.setLocalLocation(tz.getLocation(currentTimeZone));
+      tz.setLocalLocation(tz.getLocation('Asia/Seoul')); // <--- 이 부분을 활성화!
+      debugPrint('[NotificationService] 로컬 타임존 설정: Asia/Seoul');
+    } catch (e) {
+      debugPrint('[NotificationService] 타임존 설정 중 오류: $e');
+      // 기본 UTC로 동작하거나, 에러 처리를 할 수 있습니다.
+    }
     // Android 초기화 설정
     // '@mipmap/ic_launcher'는 기본 앱 아이콘을 사용하겠다는 의미입니다.
     // 'app_icon' 등으로 변경하여 'android/app/src/main/res/drawable' 폴더에 해당 이름의 아이콘 파일이 있다면 그것을 사용할 수 있습니다.
@@ -174,7 +181,7 @@ class NotificationService {
 
     // 예약하려는 시간이 이미 과거인지 확인 (약간의 오차 허용)
     if (scheduledTime.isBefore(
-      DateTime.now().add(const Duration(seconds: 3)),
+      DateTime.now().add(const Duration(seconds: 10)),
     )) {
       debugPrint(
         'ID $id 알림의 스케줄링 시간 ($scheduledTime)이 이미 지났거나 너무 임박하여 스케줄링하지 않습니다.',
@@ -195,7 +202,7 @@ class NotificationService {
         tz.TZDateTime.from(
           scheduledTime,
           tz.local,
-        ), // DateTime을 현재 기기의 로컬 시간대 기준으로 TZDateTime으로 변환
+        ), // tz.local은 위에서 setLocalLocation으로 설정된 시간대를 따름
         NotificationDetails(
           // Android 알림 상세 설정
           android: AndroidNotificationDetails(

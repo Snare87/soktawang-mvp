@@ -145,57 +145,75 @@ export const scoreSubmit = onCall(
   } // async 함수의 끝
 ); // onCall의 끝
 
-// --- 새로운 roundTrigger 함수 정의 시작 ---
-
-/**
- * 주기적으로 실행되어 새 게임 라운드를 생성하는 함수 (Scheduled Function)
- * 예: 매 10분마다 실행
- */
-export const roundTrigger = onSchedule(
+// --- ✅ NEW: 하루 144개 라운드 일괄 생성 (23:00 KST) ---
+export const roundBatchCreator = onSchedule(
   {
-    schedule: "every 10 minutes",
+    schedule: "0 23 * * *",          // 매일 23:00
     timeZone: "Asia/Seoul",
-    // V2 함수 옵션들 추가 가능 (예: memory, timeoutSeconds 등)
-    // memory: "256MiB",
-    // timeoutSeconds: 60,
+    memory: "128MiB",
   },
-  async (event) => { // event 파라미터 사용
-    logger.info("roundTrigger function triggered by scheduler (v2)", {
-      timestamp: event.scheduleTime, // V2에서는 event.scheduleTime
-    });
+  async () => {
+    const db = admin.firestore();
 
-    try {
-      const db = admin.firestore();
-      const newRoundId = db.collection("rounds").doc().id;
-      const now = admin.firestore.Timestamp.now();
-      const startTime = admin.firestore.Timestamp.fromMillis(
-        now.toMillis() + 2 * 60 * 1000
-      ); // 2분 후
-      const sampleSentenceId = "s_placeholder_123";
+    // 1) 내일 00:00 기준 타임스탬프
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0); // 00:00:00.000
 
-      const newRoundData = {
-        roundId: newRoundId,
-        createdAt: now,
-        startAt: startTime,
-        status: "pending",
-        sentenceId: sampleSentenceId,
+    // --- 문장 144개 확보 (부족하면 순환 재사용) ---
+const snap = await db.collection("sentences")
+                     .orderBy("__name__")   // random 필드 없어도 OK
+                     .limit(144)
+                     .get();
+
+if (snap.empty) {
+  logger.error("❌ No sentences in collection — aborting round creation.");
+  return;                       // 문장이 0개면 그냥 중단
+}
+
+// snap.docs.length == 10  →  base 배열 크기 = 10
+const base = snap.docs.map(d => d.id);   // ['id1', … 'id10']
+
+// 144칸짜리 배열에 0~9를 반복 삽입
+const sentences: string[] = [];
+for (let i = 0; i < 144; i++) {
+  sentences.push(base[i % base.length]);
+}
+
+    // 3) 배치 작성
+    const batch = db.batch();
+    for (let i = 0; i < 144; i++) {
+      const startMillis     = tomorrow.getTime() + i * 10 * 60 * 1000; // 00:00, 00:10, ...
+      const startAt         = admin.firestore.Timestamp.fromMillis(startMillis);
+      const notifyAt        = admin.firestore.Timestamp.fromMillis(startMillis + 60_000);   // +1m
+      const entryCloseAt    = admin.firestore.Timestamp.fromMillis(startMillis + 120_000);  // +2m
+      const submitCloseAt   = admin.firestore.Timestamp.fromMillis(startMillis + 600_000);  // +10m
+      const roundId         = `R${startMillis}`;  // 예: R1715404800000
+      const expireAt      = admin.firestore.Timestamp.fromMillis(
+                          startMillis + 30 * 24 * 60 * 60 * 1000  // +30일
+                        );
+
+      batch.set(db.doc(`rounds/${roundId}`), {
+        roundId,
+        sentenceId: sentences[i % sentences.length],
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        startAt,
+        notifyAt,
+        entryCloseAt,
+        submitCloseAt,
+        expireAt,
+        status: "scheduled",
         participantCount: 0,
-      };
-
-      await db.collection("rounds").doc(newRoundId).set(newRoundData);
-      logger.info(`New round created successfully (v2): ${newRoundId}`, {
-        data: newRoundData,
       });
-      // 명시적으로 아무것도 반환하지 않거나 return; 사용
-      // V2 onSchedule 핸들러는 Promise<void> 또는 void를 반환해야 함
-      return; // <--- 수정: return null; 대신 return; 또는 아무것도 반환 안 함
-    } catch (error) {
-      logger.error("Error creating new round (v2):", error);
-      // 오류 발생 시에도 명시적으로 아무것도 반환하지 않음
-      return; // <--- 수정: return null; 대신 return; 또는 아무것도 반환 안 함
     }
+
+    await batch.commit();
+    logger.info(`✅ Created 144 rounds for ${tomorrow.toISOString().slice(0,10)}`);
   }
-); // onSchedule 끝
+);
+
+
+
 
 // 다른 함수들이 있다면 여기에 추가...
 
