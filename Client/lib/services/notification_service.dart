@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart'; // Riverpod 사용
 import 'package:shared_preferences/shared_preferences.dart'; // SharedPreferences 사용
 import 'package:timezone/data/latest_all.dart' as tz; // timezone 초기화
 import 'package:timezone/timezone.dart' as tz; // timezone 사용
+import '../providers/shared_preferences_provider.dart';
 
 // --- Riverpod Providers ---
 
@@ -38,17 +39,6 @@ class AlarmSettingsNotifier extends StateNotifier<bool> {
     debugPrint('알람 설정 변경: $state');
   }
 }
-
-// SharedPreferences 인스턴스를 제공하는 Provider (main.dart에서 override 필수)
-final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
-  // 이 Provider는 main.dart에서 실제 SharedPreferences 인스턴스로 override되어야 합니다.
-  // ProviderScope(overrides: [sharedPreferencesProvider.overrideWithValue(prefsInstance)]) 형태로.
-  throw UnimplementedError(
-    'SharedPreferences provider must be overridden in main.dart',
-  );
-});
-
-// --- NotificationService 클래스 ---
 
 class NotificationService {
   final Ref _ref; // Riverpod Ref를 사용하기 위해 멤버 변수 추가
