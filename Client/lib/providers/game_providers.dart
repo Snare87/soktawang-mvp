@@ -2,6 +2,7 @@
 import 'dart:math'; // Random 사용 위해 import
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/sentences.dart'; // 방금 만든 문장 데이터 import
+import 'package:flutter/foundation.dart';
 
 /// 전체 연습 문장 리스트를 제공하는 Provider
 final sentenceListProvider = Provider<List<String>>((ref) {
@@ -30,10 +31,10 @@ void loadNewRandomSentence(WidgetRef ref) {
     // currentGameSentenceProvider의 상태(state)를 새로 선택된 문장으로 업데이트
     // .notifier를 통해 StateController에 접근하여 state를 변경합니다.
     ref.read(currentGameSentenceProvider.notifier).state = newSentence;
-    print("New sentence loaded: $newSentence"); // 디버깅용 로그
+    debugPrint("New sentence loaded: $newSentence"); // 디버깅용 로그
   } else {
     ref.read(currentGameSentenceProvider.notifier).state =
         "사용 가능한 문장이 없습니다."; // 예외 처리
-    print("Error: No sentences available to load.");
+    debugPrint("Error: No sentences available to load.");
   }
 }

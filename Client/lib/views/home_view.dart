@@ -6,6 +6,7 @@ import '../providers/ranking_provider.dart';
 import 'lobby_view.dart';
 import '../services/notification_service.dart';
 import '../providers/round_alarm_scheduler_provider.dart';
+import '../data/rank_entry.dart';
 
 class HomeView extends ConsumerStatefulWidget {
   // ConsumerStatefulWidget으로 유지
@@ -33,13 +34,13 @@ class _HomeViewState extends ConsumerState<HomeView> {
             .read(roundAlarmSchedulerProvider)
             .refreshAlarms()
             .then((_) {
-              print('[HomeView] initState: 다음 알람 세트 스케줄링 시도 완료.');
+              debugPrint('[HomeView] initState: 다음 알람 세트 스케줄링 시도 완료.');
             })
             .catchError((e) {
-              print('[HomeView] initState: 알람 스케줄링 중 오류: $e');
+              debugPrint('[HomeView] initState: 알람 스케줄링 중 오류: $e');
             });
       } else {
-        print('[HomeView] initState: 알람이 꺼져있어 스케줄링하지 않음.');
+        debugPrint('[HomeView] initState: 알람이 꺼져있어 스케줄링하지 않음.');
       }
     });
   }
@@ -89,10 +90,10 @@ class _HomeViewState extends ConsumerState<HomeView> {
                   .read(roundAlarmSchedulerProvider)
                   .refreshAlarms()
                   .then((_) {
-                    print('[HomeView] 라운드 전환: 다음 알람 세트 스케줄링 시도 완료.');
+                    debugPrint('[HomeView] 라운드 전환: 다음 알람 세트 스케줄링 시도 완료.');
                   })
                   .catchError((e) {
-                    print('[HomeView] 라운드 전환 중 알람 스케줄링 오류: $e');
+                    debugPrint('[HomeView] 라운드 전환 중 알람 스케줄링 오류: $e');
                   });
             }
           }
@@ -163,57 +164,57 @@ class _HomeViewState extends ConsumerState<HomeView> {
                     );
                     return Switch(
                       value: currentAlarmState,
-                      onChanged: (bool value) {
-                        ref
+                      onChanged: (bool value) async {
+                        // 1) 알람 설정 저장
+                        await ref
                             .read(alarmSettingsProvider.notifier)
-                            .setAlarmEnabled(value)
-                            .then((_) {
-                              // 상태 변경 후 SnackBar 표시
-                              ScaffoldMessenger.of(
-                                context,
-                              ).removeCurrentSnackBar(); // 이전 SnackBar가 있다면 제거
-                              if (value) {
-                                // 알람을 켰을 때: 다음 라운드 알람을 스케줄링
-                                ref
-                                    .read(roundAlarmSchedulerProvider)
-                                    .refreshAlarms()
-                                    .then((_) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            '라운드 알림이 켜졌습니다. 다음 라운드부터 알림이 예약됩니다.',
-                                          ),
-                                          duration: Duration(seconds: 2),
-                                        ),
-                                      );
-                                    })
-                                    .catchError((e) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text('알림 예약 중 오류: $e'),
-                                          duration: Duration(seconds: 2),
-                                        ),
-                                      );
-                                    });
-                              } else {
-                                // 알람을 껐을 때: 예약된 모든 알림 취소
-                                ref
-                                    .read(notificationServiceProvider)
-                                    .cancelAllNotifications();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      '라운드 알림이 꺼졌습니다. 예약된 모든 알림이 취소됩니다.',
-                                    ),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              }
-                            });
+                            .setAlarmEnabled(value);
+                        if (!context.mounted) return; // ← 174행 경고 방지
+
+                        // 2) 스낵바를 표시할 messenger 인스턴스
+                        final messenger = ScaffoldMessenger.of(context);
+                        messenger.removeCurrentSnackBar();
+
+                        if (value) {
+                          // 알람을 켰을 때: 알람 스케줄링
+                          try {
+                            await ref
+                                .read(roundAlarmSchedulerProvider)
+                                .refreshAlarms();
+                            if (!mounted) return; // ← 183행
+
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  '라운드 알림이 켜졌습니다. 다음 라운드부터 알림이 예약됩니다.',
+                                ),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return; // ← 195행
+
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('알림 예약 중 오류: $e'),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        } else {
+                          // 알람을 껐을 때: 모든 예약 취소
+                          ref
+                              .read(notificationServiceProvider)
+                              .cancelAllNotifications();
+                          if (!mounted) return; // ← 208행
+
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('라운드 알림이 꺼졌습니다. 예약된 모든 알림이 취소됩니다.'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
                       },
                     );
                   },

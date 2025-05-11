@@ -3,6 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/intl.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter/foundation.dart'; // debugPrint 사용을 위해 추가
 
 class RoundAlarmScheduler {
   RoundAlarmScheduler._() {
@@ -48,7 +49,7 @@ class RoundAlarmScheduler {
             .orderBy('notifyAt')
             .get();
 
-    print('▶ refreshAlarms(): scheduling ${snap.docs.length} alarms');
+    debugPrint('▶ refreshAlarms(): scheduling ${snap.docs.length} alarms');
 
     // 3) OS에 일괄 예약
     for (final doc in snap.docs) {

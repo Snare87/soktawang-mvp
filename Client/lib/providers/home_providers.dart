@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Firestore import
 import 'package:firebase_auth/firebase_auth.dart'; // Auth import
+import 'package:flutter/foundation.dart';
+
 // import 'dart:developer' as developer; // log 사용 시 필요
 
 // --- Auth 관련 Provider ---
@@ -69,26 +71,28 @@ final nextRoundStartTimeProvider = StreamProvider<Timestamp?>((ref) {
   return stream
       .map((querySnapshot) {
         // ▼▼▼▼▼▼▼▼▼▼▼ 이 부분 로그 추가! ▼▼▼▼▼▼▼▼▼▼▼
-        print("--- [NextRoundProvider] Snapshot Received ---");
-        print("Docs count: ${querySnapshot.docs.length}");
+        debugPrint("--- [NextRoundProvider] Snapshot Received ---");
+        debugPrint("Docs count: ${querySnapshot.docs.length}");
         // ▲▲▲▲▲▲▲▲▲▲▲ 여기까지 로그 ▲▲▲▲▲▲▲▲▲▲▲
         if (querySnapshot.docs.isNotEmpty) {
           // 문서가 존재하면 첫 번째 문서의 'startAt' 필드 반환
           final roundDoc = querySnapshot.docs.first;
           final data = roundDoc.data();
-          print(
+          debugPrint(
             "[HomeProvider] Next round startAt: ${data['startAt']}",
           ); // 디버그 로그
           return data['startAt'] as Timestamp?;
         } else {
           // 예정된 라운드가 없으면 null 반환
-          print("[HomeProvider] No upcoming pending rounds found."); // 디버그 로그
+          debugPrint(
+            "[HomeProvider] No upcoming pending rounds found.",
+          ); // 디버그 로그
           return null;
         }
       })
       .handleError((error) {
         // 스트림 에러 처리
-        print("[HomeProvider] Error fetching next round: $error");
+        debugPrint("[HomeProvider] Error fetching next round: $error");
         return null;
       });
 });
