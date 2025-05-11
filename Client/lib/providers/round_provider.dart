@@ -1,55 +1,92 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 
-/// 최신 라운드를 가져오는 Provider
-final defaultRoundIdProvider = FutureProvider<String>((ref) async {
-  debugPrint("[defaultRound] 시작");
-  final snap =
-      await FirebaseFirestore.instance
-          .collection('rounds')
-          .orderBy('createdAt', descending: true)
-          .limit(1)
-          .get();
-  debugPrint("[defaultRound] snap.docs.length = ${snap.docs.length}"); // ← 추가
-
-  if (snap.docs.isEmpty) throw Exception('생성된 라운드가 없습니다');
-  final String latestId = snap.docs.first.id;
-  debugPrint("[defaultRound] 최신 라운드 ID = $latestId");
-  return latestId;
-});
-
-/// 사용 가능한 라운드 ID 목록
-final availableRoundsProvider = FutureProvider<List<String>>((ref) async {
-  debugPrint("[availableRounds] 시작"); // ← 추가
-
-  final snapshot =
-      await FirebaseFirestore.instance
-          .collection('rounds')
-          .orderBy('createdAt', descending: true)
-          .get();
-  final List<String> ids = snapshot.docs.map((doc) => doc.id).toList();
-  debugPrint("[availableRounds] IDs = $ids");
-  return ids;
-});
-
-/// Round 모델
+// Round 문서의 데이터를 쉽게 접근하기 위한 모델 클래스
 class Round {
   final String id;
   final String sentenceId;
-  Round({required this.id, required this.sentenceId});
+  final Map<String, dynamic> data;
+
+  Round({required this.id, required this.sentenceId, required this.data});
+
+  factory Round.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    return Round(
+      id: doc.id,
+      sentenceId: data['sentenceId'] as String? ?? '',
+      data: data,
+    );
+  }
 }
 
-/// 선택된 라운드 ID (nullable)
+// Round ID를 저장하는 StateProvider
 final currentRoundIdProvider = StateProvider<String?>((ref) => null);
 
-/// 선택된 Round 문서
+// Round ID를 기반으로 해당 Round 문서를 제공하는 FutureProvider
 final roundDocumentProvider = FutureProvider<Round>((ref) async {
-  final rid = ref.read(currentRoundIdProvider);
-  if (rid == null) throw Exception('Round ID가 설정되지 않음');
-  final doc =
-      await FirebaseFirestore.instance.collection('rounds').doc(rid).get();
-  final data = doc.data();
-  if (data == null) throw Exception('라운드 문서가 없습니다: $rid');
-  return Round(id: doc.id, sentenceId: data['sentenceId'] as String);
+  final roundId = ref.watch(currentRoundIdProvider);
+  debugPrint("[roundDocumentProvider] 요청된 라운드 ID: $roundId");
+
+  if (roundId == null) {
+    throw Exception('Round ID가 설정되지 않았습니다');
+  }
+
+  try {
+    final doc =
+        await FirebaseFirestore.instance
+            .collection('rounds')
+            .doc(roundId)
+            .get();
+
+    if (!doc.exists) {
+      throw Exception('존재하지 않는 Round ID: $roundId');
+    }
+
+    // DocumentSnapshot에서 Round 객체로 변환
+    final round = Round.fromFirestore(doc);
+    debugPrint(
+      "[roundDocumentProvider] 라운드 문서 로드 완료: ${round.id}, sentenceId=${round.sentenceId}",
+    );
+    return round;
+  } catch (e) {
+    debugPrint("[roundDocumentProvider] 라운드 문서 로드 중 오류: $e");
+    rethrow;
+  }
+});
+
+// 가장 기본 라운드(최신 라운드)의 ID를 조회하는 FutureProvider
+final defaultRoundIdProvider = FutureProvider<String>((ref) async {
+  debugPrint("[defaultRoundIdProvider] 최신 라운드 ID 조회 시작");
+
+  try {
+    final query =
+        await FirebaseFirestore.instance
+            .collection('rounds')
+            .orderBy('createdAt', descending: true)
+            .limit(1)
+            .get();
+
+    if (query.docs.isEmpty) {
+      const errorMsg = '생성된 라운드가 없습니다';
+      debugPrint("[defaultRoundIdProvider] $errorMsg");
+      throw Exception(errorMsg);
+    }
+
+    final roundId = query.docs.first.id;
+    debugPrint("[defaultRoundIdProvider] 최신 라운드 ID: $roundId");
+
+    // defaultRoundIdProvider 조회 시 자동으로 currentRoundIdProvider 초기화 (최초 한 번만)
+    if (ref.read(currentRoundIdProvider) == null) {
+      debugPrint(
+        "[defaultRoundIdProvider] currentRoundIdProvider 초기화: $roundId",
+      );
+      ref.read(currentRoundIdProvider.notifier).state = roundId;
+    }
+
+    return roundId;
+  } catch (e) {
+    debugPrint("[defaultRoundIdProvider] 오류 발생: $e");
+    rethrow;
+  }
 });

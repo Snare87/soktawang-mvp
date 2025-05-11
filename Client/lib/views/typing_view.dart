@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // ← 추가
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../providers/game_providers.dart'; // Sentence providers
 import '../providers/ranking_provider.dart';
@@ -236,25 +236,29 @@ class _TypingViewState extends ConsumerState<TypingView> {
                     if (_isResultSubmitting) return;
                     setState(() => _isResultSubmitting = true);
 
-                    // 1) Provider에서 실제 값 꺼내기
-                    final String roundId =
-                        ref.read(currentRoundIdProvider)!; // 현재 라운드 ID
-                    final round = await ref.read(
-                      roundDocumentProvider.future,
-                    ); // Round 객체 읽기
-                    final String sentenceId =
-                        round.sentenceId; // 라운드의 sentenceId
-
-                    // 2) 전송할 데이터 맵 구성
-                    final dataToSubmit = <String, dynamic>{
-                      'score': score,
-                      'wpm': wpm.toInt(),
-                      'accuracy': accuracy,
-                      'sentenceId': sentenceId,
-                      'roundId': roundId,
-                    };
-
                     try {
+                      // 1) Provider에서 실제 값 꺼내기
+                      final String? roundId = ref.read(
+                        currentRoundIdProvider,
+                      ); // 현재 라운드 ID
+                      if (roundId == null) {
+                        throw Exception('라운드 ID가 없습니다');
+                      }
+
+                      final round = await ref.read(
+                        roundDocumentProvider.future,
+                      );
+                      final String sentenceId = round.sentenceId;
+
+                      // 2) 전송할 데이터 맵 구성
+                      final dataToSubmit = <String, dynamic>{
+                        'score': score,
+                        'wpm': wpm.toInt(),
+                        'accuracy': accuracy,
+                        'sentenceId': sentenceId,
+                        'roundId': roundId,
+                      };
+
                       final functions = FirebaseFunctions.instanceFor(
                         region: 'asia-southeast1',
                       );
@@ -263,6 +267,11 @@ class _TypingViewState extends ConsumerState<TypingView> {
                       debugPrint('DEBUG: scoreSubmit 완료: $dataToSubmit');
                     } catch (e) {
                       debugPrint('ERROR during function call: $e');
+                      if (mounted) {
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text('점수 등록 실패: $e')));
+                      }
                     } finally {
                       _completeAndClose(); // 결과 팝업 및 화면 닫기
                     }
@@ -338,7 +347,7 @@ class _TypingViewState extends ConsumerState<TypingView> {
 
             const SizedBox(height: 32),
 
-            // 2) **여기**가 빠져 있었던 TextField
+            // 2) TextField
             TextField(
               decoration: InputDecoration(
                 hintText: '여기에 타자 입력...',
@@ -377,8 +386,6 @@ class _TypingViewState extends ConsumerState<TypingView> {
               '남은 시간: ${timerState.remainingSeconds}초',
               style: const TextStyle(fontSize: 16, color: Colors.blueGrey),
             ),
-
-            // … 이하 계속 …
           ],
         ),
       ),
