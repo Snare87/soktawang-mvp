@@ -10,7 +10,7 @@ import 'package:flutter/foundation.dart';
 
 /// 실시간 Top 10 랭킹 리스트를 제공하는 StreamProvider
 final topRankingsProvider = StreamProvider<List<RankEntry>>((ref) {
-  final String? roundId = ref.watch(currentRoundIdProvider);
+  final String? roundId = ref.watch(rankingRoundIdProvider);
   debugPrint("[topRankings] 현재 라운드 ID: $roundId");
 
   if (roundId == null) {
@@ -133,27 +133,112 @@ final topRankingsProvider = StreamProvider<List<RankEntry>>((ref) {
 });
 
 /// Firestore에서 가장 최근에 생성된 Round 문서의 ID를 조회하는 함수
+/// 현재 시간에 해당하는 플레이 가능한 라운드를 조회하는 함수
+/// 현재 시간에 해당하는 플레이 가능한 라운드를 조회하는 함수
+/// 현재 시간에 해당하는 플레이 가능한 라운드를 조회하는 함수
 Future<String> joinRound() async {
-  debugPrint("[joinRound] 최신 라운드 조회 시작");
+  debugPrint("[joinRound] 현재 시간에 맞는 라운드 조회 시작");
   try {
+    // UTC 기준 현재 시간
+    final now = Timestamp.now();
+    final nowUtc = now.toDate();
+
+    // 한국 시간으로 변환 (UTC+9)
+    final nowKst = toKoreanTime(nowUtc);
+
+    debugPrint("[joinRound] 현재 시간(UTC): $nowUtc");
+    debugPrint("[joinRound] 현재 시간(KST): $nowKst");
+
+    // 현재 상황에 맞는 라운드 검색
+    // 1. 현재 시간이 submitCloseAt보다 이전인 라운드 검색
     final query =
         await FirebaseFirestore.instance
             .collection('rounds')
-            .orderBy('createdAt', descending: true)
-            .limit(1)
+            .where('submitCloseAt', isGreaterThan: now)
+            .orderBy('submitCloseAt')
+            .limit(10)
             .get();
 
+    debugPrint("[joinRound] 조회된 라운드 수: ${query.docs.length}");
+
     if (query.docs.isEmpty) {
-      const errorMsg = '생성된 라운드가 없습니다';
-      debugPrint("[joinRound] $errorMsg");
-      throw Exception(errorMsg);
+      // 다음 라운드 조회
+      final nextQuery =
+          await FirebaseFirestore.instance
+              .collection('rounds')
+              .where('startAt', isGreaterThan: now)
+              .orderBy('startAt')
+              .limit(1)
+              .get();
+
+      if (nextQuery.docs.isEmpty) {
+        throw Exception('현재 참가 가능한 라운드가 없고 예정된 라운드도 없습니다');
+      }
+
+      final roundId = nextQuery.docs.first.id;
+      final startAt = nextQuery.docs.first.data()['startAt'] as Timestamp;
+      final startAtUtc = startAt.toDate();
+      final startAtKst = toKoreanTime(startAtUtc);
+
+      debugPrint("[joinRound] 현재 참가 가능한 라운드 없음. 곧 시작될 라운드 ID: $roundId");
+      debugPrint("[joinRound] 시작 시간(UTC): $startAtUtc");
+      debugPrint("[joinRound] 시작 시간(KST): $startAtKst");
+
+      return roundId;
     }
 
-    final roundId = query.docs.first.id;
-    debugPrint("[joinRound] 최신 라운드 ID: $roundId");
-    return roundId;
+    // 2. entryCloseAt가 현재 시간보다 나중이고 startAt이 현재 시간보다 이전인 라운드 찾기
+    for (var doc in query.docs) {
+      final data = doc.data();
+      final entryCloseAt = data['entryCloseAt'] as Timestamp;
+      final startAt = data['startAt'] as Timestamp;
+
+      if (entryCloseAt.compareTo(now) > 0 && startAt.compareTo(now) <= 0) {
+        // 이 라운드는 이미 시작되었고 아직 참가 마감되지 않았음
+        final startAtUtc = startAt.toDate();
+        final entryCloseAtUtc = entryCloseAt.toDate();
+        final startAtKst = toKoreanTime(startAtUtc);
+        final entryCloseAtKst = toKoreanTime(entryCloseAtUtc);
+
+        debugPrint("[joinRound] 현재 참가 및 플레이 가능한 라운드: ${doc.id}");
+        debugPrint(
+          "[joinRound] 시작(UTC): $startAtUtc, 참가 마감(UTC): $entryCloseAtUtc",
+        );
+        debugPrint(
+          "[joinRound] 시작(KST): $startAtKst, 참가 마감(KST): $entryCloseAtKst",
+        );
+
+        return doc.id;
+      }
+    }
+
+    // 3. 참가 마감은 됐지만 제출은 가능한 라운드
+    final doc = query.docs.first;
+    final data = doc.data();
+    final startAt = data['startAt'] as Timestamp;
+    final submitCloseAt = data['submitCloseAt'] as Timestamp;
+
+    final startAtUtc = startAt.toDate();
+    final submitCloseAtUtc = submitCloseAt.toDate();
+    final startAtKst = toKoreanTime(startAtUtc);
+    final submitCloseAtKst = toKoreanTime(submitCloseAtUtc);
+
+    debugPrint("[joinRound] 참가 마감된 현재 진행 중인 라운드: ${doc.id}");
+    debugPrint(
+      "[joinRound] 시작(UTC): $startAtUtc, 제출 마감(UTC): $submitCloseAtUtc",
+    );
+    debugPrint(
+      "[joinRound] 시작(KST): $startAtKst, 제출 마감(KST): $submitCloseAtKst",
+    );
+
+    return doc.id;
   } catch (e) {
     debugPrint("[joinRound] 오류 발생: $e");
     rethrow;
   }
+}
+
+// UTC 시간을 한국 시간(UTC+9)으로 변환하는 헬퍼 함수
+DateTime toKoreanTime(DateTime utcTime) {
+  return utcTime.add(Duration(hours: 9));
 }

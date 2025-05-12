@@ -11,8 +11,7 @@ import '../providers/round_provider.dart';
 
 // 선택한 라운드 ID 상태를 관리하는 Provider
 final selectedRoundIdProvider = StateProvider<String?>((ref) {
-  // 기본값은 currentRoundIdProvider의 값
-  return ref.watch(currentRoundIdProvider);
+  return ref.watch(rankingRoundIdProvider);
 });
 
 // 라운드 목록을 가져오는 Provider
@@ -185,7 +184,7 @@ class _HomeViewState extends ConsumerState<HomeView> {
     final String formattedEntryCloseTime = formatDuration(
       _currentRemainingTime,
     );
-    final isAlarmOn = ref.watch(alarmSettingsProvider); // AppBar 아이콘 업데이트용
+    final isAlarmOn = ref.watch(alarmSettingsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -208,7 +207,6 @@ class _HomeViewState extends ConsumerState<HomeView> {
         ],
       ),
       body: Padding(
-        // 기존 UI 구조 유지
         padding: const EdgeInsets.all(16.0),
         child: Center(
           child: Column(
@@ -244,8 +242,9 @@ class _HomeViewState extends ConsumerState<HomeView> {
               ),
               Column(
                 children: [
-                  // 라운드별 랭킹 확인
-                  Row(
+                  // 여기가 변경될 부분입니다. Row를 Column으로 수정
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         '🏆 라운드별 랭킹 확인',
@@ -253,7 +252,7 @@ class _HomeViewState extends ConsumerState<HomeView> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(height: 8),
                       _buildRoundDropdown(),
                     ],
                   ),
@@ -355,8 +354,8 @@ class _HomeViewState extends ConsumerState<HomeView> {
               value: currentSelectedId,
               onChanged: (newValue) {
                 if (newValue != null) {
-                  ref.read(selectedRoundIdProvider.notifier).state = newValue;
-                  debugPrint("Selected round changed to: $newValue");
+                  ref.read(rankingRoundIdProvider.notifier).state = newValue;
+                  debugPrint("Selected ranking round changed to: $newValue");
                 }
               },
               items:
@@ -375,12 +374,12 @@ class _HomeViewState extends ConsumerState<HomeView> {
   Widget _buildRankingsList() {
     // 현재 선택된 라운드 ID
     final selectedRoundId = ref.watch(selectedRoundIdProvider);
-    final currentRoundId = ref.watch(currentRoundIdProvider);
+    final currentRoundId = ref.watch(gameRoundIdProvider);
 
     // 선택된 라운드 ID가 현재 라운드 ID와 다르면 빌드 후에 업데이트
-    if (selectedRoundId != currentRoundId) {
+    if (selectedRoundId != ref.read(rankingRoundIdProvider)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(currentRoundIdProvider.notifier).state = selectedRoundId;
+        ref.read(gameRoundIdProvider.notifier).state = selectedRoundId;
       });
     }
 

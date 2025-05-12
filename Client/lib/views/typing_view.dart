@@ -82,65 +82,89 @@ class _TypingViewState extends ConsumerState<TypingView> {
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+
+      // 화면 진입 시 상태 초기화
+      ref.invalidate(currentGameSentenceProvider);
+      ref.invalidate(currentInputProvider);
+      ref.invalidate(gameTimerProvider);
+
       _startNewGame();
     });
   }
 
-  /// <--- 여기부터 수정된 _startNewGame() 코드 전체 ↓
   Future<void> _startNewGame() async {
     debugPrint("🙏 _startNewGame 시작");
     _isResultSubmitting = false;
+
     try {
-      // 1) 최신 Round ID 획득
+      // 1) 현재 시간에 맞는 Round ID 획득
       final rid = await joinRound();
       debugPrint("1) 받은 rid: $rid");
 
       if (!mounted) return;
-      ref.read(currentRoundIdProvider.notifier).state = rid;
+      ref.read(gameRoundIdProvider.notifier).state = rid;
 
       // 2) Round 문서에서 sentenceId 조회
       final round = await ref.read(roundDocumentProvider.future);
       debugPrint("2) Round 문서: ${round.id}, sentenceId=${round.sentenceId}");
 
+      if (round.sentenceId.isEmpty) {
+        throw Exception('라운드에 sentenceId가 없습니다: ${round.id}');
+      }
+
       // 3) sentences 컬렉션에서 실제 텍스트 한 건 조회
+      debugPrint("3) 문장 로드 시작: ${round.sentenceId}");
       final sentDoc =
           await FirebaseFirestore.instance
               .collection('sentences')
               .doc(round.sentenceId)
               .get();
-      debugPrint("3) sentences 문서 존재여부: ${sentDoc.exists}");
+
+      debugPrint("3-a) sentences 문서 존재여부: ${sentDoc.exists}");
+
+      if (!sentDoc.exists) {
+        throw Exception('문장 문서가 존재하지 않습니다: ${round.sentenceId}');
+      }
 
       final sentData = sentDoc.data();
-      if (sentData == null) throw Exception('문장 문서가 없습니다: ${round.sentenceId}');
-      final String sentence = sentData['text'] as String;
+      debugPrint("3-b) 문서 데이터: $sentData");
+
+      if (sentData == null) {
+        throw Exception('문장 데이터가 null입니다: ${round.sentenceId}');
+      }
+
+      if (!sentData.containsKey('text')) {
+        throw Exception('문장 문서에 text 필드가 없습니다: ${round.sentenceId}');
+      }
+
+      final sentence = sentData['text'] as String;
+      debugPrint("3-c) 로드된 문장: '$sentence'");
+
+      if (sentence.isEmpty) {
+        throw Exception('문장이 비어있습니다: ${round.sentenceId}');
+      }
 
       if (!mounted) return;
-      // 4) 기존 currentGameSentenceProvider 대신 실제 문장 세팅
+
+      // 4) 문장 상태 업데이트
       ref.read(currentGameSentenceProvider.notifier).state = sentence;
 
       // 5) Input·Timer 초기화
       ref.invalidate(currentInputProvider);
       ref.invalidate(gameTimerProvider);
 
-      _initializeTypingGame();
-
-      debugPrint("New game started with sentence: $sentence");
+      debugPrint("6) 게임 준비 완료: ${round.id}, 문장: '$sentence'");
     } catch (e) {
-      debugPrint('게임 시작 오류: $e');
+      debugPrint('❌ 게임 시작 오류: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('게임 시작 실패: $e')));
       }
     }
-  }
-
-  /// <--- 수정된 _startNewGame() 끝
-
-  void _initializeTypingGame() {
-    // 이전 loadNewRandomSentence(ref); 대신 생략하거나 남길 수 있습니다.
   }
 
   // --- 비동기 작업 후 UI 업데이트를 위한 헬퍼 메서드 ---
@@ -239,7 +263,7 @@ class _TypingViewState extends ConsumerState<TypingView> {
                     try {
                       // 1) Provider에서 실제 값 꺼내기
                       final String? roundId = ref.read(
-                        currentRoundIdProvider,
+                        gameRoundIdProvider,
                       ); // 현재 라운드 ID
                       if (roundId == null) {
                         throw Exception('라운드 ID가 없습니다');
@@ -290,6 +314,30 @@ class _TypingViewState extends ConsumerState<TypingView> {
     final GameTimerState timerState = ref.watch(gameTimerProvider);
     final String gameSentence = ref.watch(currentGameSentenceProvider);
 
+    // 문장이 비어있는 경우 안내 메시지 표시
+    if (gameSentence.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('타자 경기')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 20),
+              Text('문장을 로드하는 중...'),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  // 로딩이 오래 걸리는 경우 수동으로 새로고침할 수 있는 버튼
+                  _startNewGame();
+                },
+                child: Text('새로고침'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     // 이전 포커스에서 팝업을 닫은 후 화면도 pop 해야 하는 경우
     if (_shouldCloseAfterSubmit) {
       _shouldCloseAfterSubmit = false;

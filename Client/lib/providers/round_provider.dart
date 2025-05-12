@@ -20,12 +20,16 @@ class Round {
   }
 }
 
-// Round ID를 저장하는 StateProvider
-final currentRoundIdProvider = StateProvider<String?>((ref) => null);
+// 수정된 Provider 구조
+// 1. 게임 플레이에 사용되는 현재 라운드 ID
+final gameRoundIdProvider = StateProvider<String?>((ref) => null);
+
+// 2. 랭킹 화면에서 사용하는 선택된 라운드 ID (기존 selectedRoundIdProvider와 유사)
+final rankingRoundIdProvider = StateProvider<String?>((ref) => null);
 
 // Round ID를 기반으로 해당 Round 문서를 제공하는 FutureProvider
 final roundDocumentProvider = FutureProvider<Round>((ref) async {
-  final roundId = ref.watch(currentRoundIdProvider);
+  final roundId = ref.watch(gameRoundIdProvider); // currentRoundIdProvider에서 변경
   debugPrint("[roundDocumentProvider] 요청된 라운드 ID: $roundId");
 
   if (roundId == null) {
@@ -77,11 +81,11 @@ final defaultRoundIdProvider = FutureProvider<String>((ref) async {
     debugPrint("[defaultRoundIdProvider] 최신 라운드 ID: $roundId");
 
     // defaultRoundIdProvider 조회 시 자동으로 currentRoundIdProvider 초기화 (최초 한 번만)
-    if (ref.read(currentRoundIdProvider) == null) {
+    if (ref.read(rankingRoundIdProvider) == null) {
       debugPrint(
-        "[defaultRoundIdProvider] currentRoundIdProvider 초기화: $roundId",
+        "[defaultRoundIdProvider] rankingRoundIdProvider 초기화: $roundId",
       );
-      ref.read(currentRoundIdProvider.notifier).state = roundId;
+      ref.read(rankingRoundIdProvider.notifier).state = roundId;
     }
 
     return roundId;
